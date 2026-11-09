@@ -1,0 +1,110 @@
+volumes:
+  chain-data:
+  contract-artifacts:
+
+networks:
+  did-net:
+    driver: bridge
+
+services:
+  # 1. Local EVM Testnet (Anvil)
+  blockchain:
+    image: ghcr.io/foundry-rs/foundry:latest
+    container_name: did-blockchain
+    entrypoint: ["anvil", "--host", "0.0.0.0", "--port", "8545", "--block-time", "1"]
+    ports:
+      - "8545:8545"
+    networks:
+      - did-net
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8545' || exit 1"]
+      interval: 5s
+      timeout: 10s
+      retries: 10
+
+  # 2. Smart Contract Automated Deployer
+  contract-deployer:
+    image: ghcr.io/foundry-rs/foundry:latest
+    user: root
+    container_name: did-contract-deployer
+    environment:
+      - PRIVATE_KEY=${PRIVATE_KEY}
+    volumes:
+      - ./contracts:/app
+      - contract-artifacts:/app/out
+    working_dir: /app
+    networks:
+      - did-net
+    depends_on:
+      blockchain:
+        condition: service_healthy
+    # Compiles, deploys to Anvil using standard Anvil private key #0 (read from .env), and writes metadata file
+    entrypoint:
+      - sh
+      - -c
+      - forge create src/IdentityRegistry.sol:IdentityRegistry --rpc-url http://blockchain:8545 --private-key "${PRIVATE_KEY}" --json > /app/out/deployment.json && echo 'Contract successfully deployed.'
+
+  # 3. Nonce Store (Replay Prevention)
+  redis:
+    image: redis:7-alpine
+    container_name: did-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - did-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 5
+
+  # 4. Authentication & Target Resource Server
+  auth-server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: did-auth-server
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - RPC_URL=http://blockchain:8545
+      - REDIS_URL=redis://redis:6379
+      - DEPLOYMENT_FILE=/app/contracts/deployment.json
+    volumes:
+      - contract-artifacts:/app/contracts:ro
+    networks:
+      - did-net
+    depends_on:
+      redis:
+        condition: service_healthy
+      contract-deployer:
+        condition: service_completed_successfully
+
+  # 5. Interactive Client Wallet (Run on demand or backgrounded)
+  client-wallet:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: did-client-wallet
+    environment:
+      - AUTH_SERVER_URL=http://auth-server:3000
+      - RPC_URL=http://blockchain:8545
+    stdin_open: true  # Allows interactive CLI prompts (kb/input)
+    tty: true
+    networks:
+      - did-net
+    depends_on:
+      - auth-server
+
+  # 6. Optional Security / Load Testing (docker compose --profile test up)
+  benchmarks:
+    image: grafana/k6:latest
+    profiles: ["test"]
+    volumes:
+      - ./tests/k6:/scripts
+    command: run /scripts/auth_load_test.js
+    networks:
+      - did-net
+    depends_on:
+      - auth-server

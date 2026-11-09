@@ -1,0 +1,14 @@
+{
+  "name": "did-auth-server",
+  "version": "1.0.0",
+  "description": "Minimal authentication & target resource server for the DID identity registry.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "redis": "^4.7.0"
+  }
+}

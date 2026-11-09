@@ -1,0 +1,16 @@
+# Local secrets — never commit
+.env
+.env.local
+*.local
+
+# Node
+node_modules/
+
+# Build output / artifacts
+contracts/out/
+contracts/cache/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

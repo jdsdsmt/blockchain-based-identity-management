@@ -1,0 +1,10 @@
+{
+  "name": "did-client-wallet",
+  "version": "1.0.0",
+  "description": "Interactive client wallet for the DID identity registry.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js"
+  }
+}
