@@ -40,11 +40,14 @@ docker compose down -v
 ### Running the client wallet interactively
 
 The wallet connects to the auth server and reads the deployment metadata written by the deployer.
-With the stack running, open a shell into the wallet container:
+With the stack running, open a shell into the wallet container using `docker exec`:
 
 ```bash
-docker compose exec did-client-wallet sh
+docker exec -it did-client-wallet sh
 ```
+
+> Note: use `docker exec`, not `docker compose exec`. With Compose v5, `compose exec` does not
+> resolve services built from source, while plain `docker exec` works as expected.
 
 ## Containers
 
